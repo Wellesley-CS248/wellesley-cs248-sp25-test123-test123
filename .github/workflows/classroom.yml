@@ -1,39 +1,64 @@
-name: Autograding Tests
+name: Auto-Grade Assignments
+
 on:
-  - push
-  - workflow_dispatch
-  - repository_dispatch
+  push:
+    branches:
+      - main  
+  pull_request:
+
 permissions:
-  checks: write
-  actions: read
-  contents: read
+  pull-requests: write
+
 jobs:
-  run-autograding-tests:
+  grade:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-classroom[bot]'
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      # This is where you place your autograding tests
-      # For more information on this runner, see the documentation at: https://github.com/classroom-resources/autograding-io-grader
-      #
-      # For example, you could run a test suite like this:
-      # - name: Run tests
-      #   uses: classroom-resources/autograding-io-grader@v1
-      #     with:
-      #       test-name: Addition Test
-      #       id: addition-test
-      #       command: "./bin/add.sh"
-      #       input: 1 2
-      #       expected-output: 3
-      #       comparison-method: exact
-      #       timeout: 10
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      # For more information on this runner, see the documentation at https://github.com/classroom-resources/autograding-grading-reporter
-      # To output the results of the tests, you can use the
-      # autograding-grading-reporter action like this:
-      # env:
-      # ADDITION-TEST_RESULTS: "${{ steps.addition - test.outputs.result }}"
-      #     with:
-      #         runners: addition-test
+      - name: 📥 Checkout Student Repository
+        uses: actions/checkout@v3
+
+      - name: 🔄 Clone Autograder Files
+        uses: actions/checkout@v3
+        with:
+          repository: bellesea/private_grading
+          token: ${{ secrets.AUTOGRADER }}  
+          path: autograder  
+
+      - name: 🏗 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r autograder/requirements.txt  # Use dependencies from autograder repo
+
+      - name: 🔄 Run nbgrader on Student Submission
+        run: |
+          cp -r autograder/cs248/* cs248/  # Copy autograder files to grading directory
+          cd cs248
+          nbgrader autograde "ps1" --force
+
+      - name: 📊 Extract Scores and Errors
+        run: |
+          cd cs248
+          nbgrader export --assignment="ps1"
+          echo "## Scores" > grade_report.md
+          tail -n +2 grades.csv | awk -F',' '{print "score: " $8 " / " $11}' >> grade_report.md
+
+          # Capture which cells failed
+          echo "" >> grade_report.md
+          echo "## Errors" >> grade_report.md
+          grep -A 2 "traceback" autograded/ps1/*.ipynb >> grade_report.md || echo "No errors!" >> grade_report.md
+
+      - name: 📝 Read Grade Report into ENV Variable
+        id: read_report
+        run: |
+          echo "GRADE_REPORT<<EOF" >> $GITHUB_ENV
+          cat cs248/grade_report.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 🏆 Run Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          GRADING_RESULTS: "${{ env.GRADE_REPORT }}"
