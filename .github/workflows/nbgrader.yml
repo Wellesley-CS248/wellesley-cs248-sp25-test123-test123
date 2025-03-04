@@ -1,0 +1,82 @@
+name: Auto-Grade Assignments
+
+on:
+  push:
+    branches:
+      - main  
+  pull_request:
+
+permissions:
+  pull-requests: write
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Student Repository
+        uses: actions/checkout@v3
+
+      - name: 🔄 Clone Autograder Files
+        uses: actions/checkout@v3
+        with:
+          repository: bellesea/private_grading
+          token: ${{ secrets.AUTOGRADER }}  
+          path: autograder  
+
+      - name: 🏗 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r autograder/requirements.txt  # Use dependencies from autograder repo
+
+      - name: 🔄 Run nbgrader on Student Submission
+        run: |
+          cp -r autograder/cs248/* cs248/  # Copy autograder files to grading directory
+          cd cs248
+          nbgrader autograde "ps1" --force
+
+      - name: 📊 Extract Scores and Errors
+        run: |
+          cd cs248
+          nbgrader export --assignment="ps1"
+          echo "## Scores" > grade_report.md
+          tail -n +2 grades.csv | awk -F',' '{print "score: " $8 " / " $11}' >> grade_report.md
+
+          # Capture which cells failed
+          echo "" >> grade_report.md
+          echo "## Errors" >> grade_report.md
+          grep -A 2 "traceback" autograded/ps1/*.ipynb >> grade_report.md || echo "No errors!" >> grade_report.md
+
+      - name: 📝 Read Grade Report into ENV Variable
+        id: read_report
+        run: |
+          echo "GRADE_REPORT<<EOF" >> $GITHUB_ENV
+          cat cs248/grade_report.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 📝 Commit Grade Report
+        run: |
+          git config --global user.name "GitHub Classroom Bot"
+          git config --global user.email "classroom-bot@users.noreply.github.com"
+          git checkout -b grading-results  
+          mv cs248/grade_report.md .  
+          git add grade_report.md
+          git commit -m "🔍 Auto-Graded: Added grade report for ps1"
+          git push origin grading-results
+
+      - name: 🔄 Open Pull Request with Grades
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: grading-result
+          title: "📊 Grading Results for ps1"
+          body: |
+            ✅ **Grading Complete!**
+            - Your assignment **ps1** has been graded.
+            - See `grade_report.md` for details.
+          labels: grading, automated
+          base: main
