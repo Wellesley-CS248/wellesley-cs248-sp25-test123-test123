@@ -16,11 +16,11 @@ jobs:
     steps:
       - name: 📥 Checkout Student Repository
         uses: actions/checkout@v3
-
+      
       - name: 🔄 Clone Autograder Files
         uses: actions/checkout@v3
         with:
-          repository: bellesea/private_grading
+          repository: Wellesley-CS248/test12
           token: ${{ secrets.AUTOGRADER }}  
           path: autograder  
 
