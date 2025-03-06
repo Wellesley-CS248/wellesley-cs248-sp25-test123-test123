@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: Wellesley-CS248/test12
-          token: ${{ secrets.AUTOGRADER }}  
+          token: ${{ secrets.GITHUB_TOKEN }}  
           path: autograder  
 
       - name: 🏗 Set up Python
@@ -61,7 +61,7 @@ jobs:
       - name: 📌 Comment on Existing PR with Grade Report
         uses: peter-evans/create-or-update-comment@v3
         with:
-          token: ${{ secrets.CLASSROOM_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           issue-number: 1  # The PR number (always 1 for GitHub Classroom)
           body: |
