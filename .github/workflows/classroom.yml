@@ -58,7 +58,27 @@ jobs:
           cat cs248/grade_report.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 🏆 Run Autograding Reporter
-        uses: classroom-resources/autograding-grading-reporter@v1
-        env:
-          GRADING_RESULTS: "${{ env.GRADE_REPORT }}"
+      - name: 📝 Commit Grade Report
+        run: |
+          git config --global user.name "GitHub Classroom Bot"
+          git config --global user.email "classroom-bot@users.noreply.github.com"
+          git checkout -b grading-results  
+          mv cs248/grade_report.md .  
+          git add grade_report.md
+          git commit -m "🔍 Auto-Graded: Added grade report for ps1"
+          git push origin grading-results
+
+      - name: 📌 Create PR with Grade Report
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: "Add grade report"
+          branch: grading-report
+          title: "Autograding Report for PS1"
+          body: |
+            ✅ **Grading Complete!**
+            - Your assignment has been graded.
+
+            ```
+            ${{ env.GRADE_REPORT }}
+            ```
+          labels: grading
